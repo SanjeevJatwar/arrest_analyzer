@@ -1,0 +1,20 @@
+# ── Phase 1 Dependencies ─────────────────────────────────────────
+# Install with:  pip install -r requirements.txt
+
+# Audio capture
+sounddevice>=0.4.6
+
+# Voice Activity Detection
+webrtcvad>=2.0.10
+
+# Speech-to-Text (Whisper)
+openai-whisper>=20231117
+
+# PyQt6 UI
+PyQt6>=6.6.0
+
+# Numeric processing (usually already installed)
+numpy>=1.24.0
+
+# ── Optional: GPU acceleration for Whisper ────────────────────────
+# If you have CUDA: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118

@@ -11,7 +11,7 @@ import threading
 import numpy as np
 import webrtcvad
 import config
-
+sample_rate = 48000
 
 class SpeechAccumulator:
     """
@@ -27,7 +27,7 @@ class SpeechAccumulator:
         self.label        = label
         self.on_utterance = on_utterance
         self.vad          = webrtcvad.Vad(config.VAD_MODE)
-        self.sample_rate  = config.SAMPLE_RATE
+        self.sample_rate  = sample_rate
         self.frame_bytes  = int(self.sample_rate * config.FRAME_MS / 1000) * 2  # int16 → 2 bytes/sample
 
         self._lock        = threading.Lock()
@@ -84,7 +84,7 @@ class SpeechAccumulator:
                     self._flush()
 
     def _flush(self):
-        """Must be called with self._lock held."""
+        """Must be called with self._lock held.f"""
         if not self._speech_buf:
             return
         raw = b"".join(self._speech_buf)
@@ -94,10 +94,11 @@ class SpeechAccumulator:
 
         audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
         duration = len(audio) / self.sample_rate
-
+        
         if duration < config.MIN_SPEECH_S:
             return  # too short — probably noise
-
+        
+        print("Utterance detected")
         # Fire callback on a separate thread so we don't block the watcher
         threading.Thread(
             target=self.on_utterance,

@@ -35,4 +35,5 @@ def transcribe(audio: np.ndarray, sample_rate: int) -> str:
         fp16=False,          # fp16=True only if CUDA available
         condition_on_previous_text=False,
     )
+    print("Transcribing...")
     return result["text"].strip()

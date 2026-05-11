@@ -1,8 +1,15 @@
 """
 ui/main_window.py — Simplified dual-channel transcript UI
+UPDATED:
+- No concurrent transcribe() calls (one worker per channel)
+- _on_utterance() only enqueues audio
+- Clean STOP: no late transcripts after stop
+- Prevents queue backlog (drops if full)
 """
 import time
 import threading
+import queue
+
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QSplitter,
@@ -39,6 +46,7 @@ class Signals(QObject):
 class ModelLoader(QThread):
     done  = pyqtSignal()
     error = pyqtSignal(str)
+
     def run(self):
         try:
             from core.audio import transcriber
@@ -48,14 +56,65 @@ class ModelLoader(QThread):
             self.error.emit(str(e))
 
 
+class TranscribeWorker(threading.Thread):
+    """
+    One worker per channel.
+    Guarantees:
+    - FIFO ordering
+    - no concurrent transcribe() for that channel
+    - safe stop (won't emit after stop_event)
+    """
+    def __init__(self, label: str, emit_text, emit_status, stop_event: threading.Event):
+        super().__init__(daemon=True)
+        self.label = label
+        self.emit_text = emit_text      # function(label, text)
+        self.emit_status = emit_status  # function(text, color)
+        self.stop_event = stop_event
+        self.q = queue.Queue(maxsize=8)
+
+    def submit(self, audio, sr):
+        try:
+            self.q.put_nowait((audio, sr))
+        except queue.Full:
+            # Drop to prevent lag explosion
+            pass
+
+    def run(self):
+        from core.audio import transcriber
+
+        while not self.stop_event.is_set():
+            try:
+                audio, sr = self.q.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
+            if self.stop_event.is_set():
+                break
+
+            try:
+                text = transcriber.transcribe(audio, sr, label=self.label)
+                if text and (not self.stop_event.is_set()):
+                    self.emit_text(self.label, text)
+            except Exception as e:
+                if not self.stop_event.is_set():
+                    self.emit_status(f"ERR: {e}", "#f44")
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.sig = Signals()
         self.capture = None
+
         self._t0 = None
         self._timer = QTimer()
         self._timer.timeout.connect(self._tick)
+
+        # NEW: stop flag + workers
+        self._stop_event = threading.Event()
+        self._local_worker = None
+        self._remote_worker = None
+
         self.setWindowTitle("ARREST ANALYZER")
         self.resize(1100, 680)
         self.setStyleSheet(STYLE)
@@ -132,41 +191,82 @@ class MainWindow(QMainWindow):
         self.loader.start()
 
     def _on_ready(self):
-        self._setstatus("READY", "#c8ff00"); self.start_btn.setEnabled(True)
+        self._setstatus("READY", "#c8ff00")
+        self.start_btn.setEnabled(True)
 
     def _start(self):
         import config
         from core.audio.capture import DualChannelCapture
+
+        # reset stop flag for a new session
+        self._stop_event.clear()
+
+        # start per-channel workers
+        self._local_worker = TranscribeWorker(
+            "LOCAL",
+            emit_text=lambda l, t: self.sig.new_entry.emit(l, t),
+            emit_status=lambda t, c: self.sig.status.emit(t, c),
+            stop_event=self._stop_event,
+        )
+        self._remote_worker = TranscribeWorker(
+            "REMOTE",
+            emit_text=lambda l, t: self.sig.new_entry.emit(l, t),
+            emit_status=lambda t, c: self.sig.status.emit(t, c),
+            stop_event=self._stop_event,
+        )
+        self._local_worker.start()
+        self._remote_worker.start()
+
         config.MIC_DEVICE_INDEX    = self.mic_cb.currentData()
         config.REMOTE_DEVICE_INDEX = self.rem_cb.currentData()
+
         try:
             self.capture = DualChannelCapture(on_utterance=self._on_utterance)
             self.capture.start()
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e)); return
-        self._t0 = time.monotonic(); self._timer.start(1000)
-        self.start_btn.setEnabled(False); self.stop_btn.setEnabled(True)
+            self._stop_event.set()
+            QMessageBox.critical(self, "Error", str(e))
+            return
+
+        self._t0 = time.monotonic()
+        self._timer.start(1000)
+        self.start_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
         self._setstatus("● RECORDING", "#ff4444")
 
     def _stop(self):
-        if self.capture: self.capture.stop(); self.capture = None
+        # stop capture (no new audio)
+        if self.capture:
+            try:
+                self.capture.stop()
+            except Exception:
+                pass
+            self.capture = None
+
+        # stop workers (prevents late UI emits)
+        self._stop_event.set()
+
         self._timer.stop()
-        self.start_btn.setEnabled(True); self.stop_btn.setEnabled(False)
+        self.start_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
         self._setstatus("STOPPED", "#555")
 
     def _clear(self):
-        self.local_text.clear(); self.remote_text.clear()
+        self.local_text.clear()
+        self.remote_text.clear()
 
     def _on_utterance(self, label, audio, sr):
-        """Runs on daemon thread — each label uses its own model."""
-        try:
-            from core.audio import transcriber
-            self.sig.status.emit("⚙ TRANSCRIBING...", "#888")
-            text = transcriber.transcribe(audio, sr, label=label)
-            if text: self.sig.new_entry.emit(label, text)
-            self.sig.status.emit("● RECORDING", "#ff4444")
-        except Exception as e:
-            self.sig.status.emit(f"ERR: {e}", "#f44")
+        """
+        Runs on capture thread.
+        Only enqueue work here (never transcribe here).
+        """
+        if self._stop_event.is_set():
+            return
+
+        if label == "LOCAL" and self._local_worker:
+            self._local_worker.submit(audio, sr)
+        elif label == "REMOTE" and self._remote_worker:
+            self._remote_worker.submit(audio, sr)
 
     def _append(self, label, text):
         ts = time.strftime("%H:%M:%S")
@@ -194,4 +294,5 @@ class MainWindow(QMainWindow):
             self.timer_lbl.setText(f"{e//3600:02d}:{(e%3600)//60:02d}:{e%60:02d}")
 
     def closeEvent(self, ev):
-        self._stop(); ev.accept()
+        self._stop()
+        ev.accept()

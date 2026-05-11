@@ -10,13 +10,21 @@ import config
 _models = {}  # {"LOCAL": model, "REMOTE": model}
 
 
-def load_models():
-    """Load two separate Whisper model instances."""
-    for label in ("LOCAL", "REMOTE"):
-        print(f"[Whisper] Loading {label} model: {config.WHISPER_MODEL} ...")
-        _models[label] = whisper.load_model(config.WHISPER_MODEL)
-    print("[Whisper] Both models ready.")
+import threading
 
+_models_lock = threading.Lock()
+_loaded = False
+
+def load_models():
+    global _loaded
+    with _models_lock:
+        if _loaded:
+            return
+        for label in ("LOCAL", "REMOTE"):
+            print(f"[Whisper] Loading {label} model: {config.WHISPER_MODEL} ...")
+            _models[label] = whisper.load_model(config.WHISPER_MODEL)
+        _loaded = True
+    print("[Whisper] Both models ready.")
 
 def transcribe(audio: np.ndarray, sample_rate: int, label: str = "LOCAL") -> str:
     model = _models.get(label)
@@ -33,4 +41,9 @@ def transcribe(audio: np.ndarray, sample_rate: int, label: str = "LOCAL") -> str
         fp16=False,
         condition_on_previous_text=False,
     )
-    return result["text"].strip()
+    try:
+        result = model.transcribe(...)
+        return result["text"].strip()
+    except Exception as e:
+        print(f"[Whisper] {label} transcribe failed: {e}")
+        return ""

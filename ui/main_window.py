@@ -427,7 +427,7 @@ class MainWindow(QMainWindow):
             text = transcriber.transcribe(audio, sample_rate)
             if text:
                 self.signals.new_entry.emit(label, text)
-            self.signals.status_update.emit("● RECORDING", )
+            self.signals.status_update.emit("● RECORDING")
         except Exception as e:
             self.signals.status_update.emit(f"ERR: {e}")
 

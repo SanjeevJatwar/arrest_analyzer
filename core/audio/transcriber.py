@@ -20,20 +20,22 @@ def load_model():
     print("[Whisper] Model ready.")
 
 
+# core/audio/transcriber.py
 def transcribe(audio: np.ndarray, sample_rate: int) -> str:
-    """
-    audio   : float32 numpy array, values in [-1, 1]
-    Returns : transcribed string (stripped)
-    """
     if _model is None:
         raise RuntimeError("Call load_model() before transcribe()")
 
-    # Whisper expects float32 @ 16kHz mono — already correct from accumulator
-    result = _model.transcribe(
-        audio,
-        language=config.WHISPER_LANGUAGE,
-        fp16=False,          # fp16=True only if CUDA available
-        condition_on_previous_text=False,
-    )
-    print("Transcribing...")
-    return result["text"].strip()
+    # ---- GUARDS (prevents the 768/features crash) ----
+    if audio is None or len(audio) == 0:
+        print("[Whisper] skipped: empty audio")
+        return ""
+
+    if not np.isfinite(audio).all():
+        print("[Whisper] skipped: non-finite audio")
+        return ""
+
+    # Ensure 1D mono
+    audio = np.asarray(audio, dtype=np.float32).flatten()
+    if len(audio) < int(0.2 * sample_rate):  # <200ms
+        print("[Whisper] skipped: too short")
+        return ""

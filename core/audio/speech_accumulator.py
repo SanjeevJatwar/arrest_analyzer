@@ -95,6 +95,7 @@ class SpeechAccumulator:
         audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
         duration = len(audio) / self.sample_rate
         
+        print(f"[{self.label}] FLUSH duration={duration:.2f}s samples={len(audio)} sr={self.sample_rate}")
         if duration < config.MIN_SPEECH_S:
             return  # too short — probably noise
         

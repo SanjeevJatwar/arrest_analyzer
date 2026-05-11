@@ -11,7 +11,7 @@ import threading
 import numpy as np
 import webrtcvad
 import config
-sample_rate = 48000
+
 
 class SpeechAccumulator:
     """
@@ -27,7 +27,7 @@ class SpeechAccumulator:
         self.label        = label
         self.on_utterance = on_utterance
         self.vad          = webrtcvad.Vad(config.VAD_MODE)
-        self.sample_rate  = sample_rate
+        self.sample_rate  = config.SAMPLE_RATE
         self.frame_bytes  = int(self.sample_rate * config.FRAME_MS / 1000) * 2  # int16 → 2 bytes/sample
 
         self._lock        = threading.Lock()

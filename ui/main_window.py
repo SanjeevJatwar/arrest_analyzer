@@ -429,6 +429,8 @@ class MainWindow(QMainWindow):
                 self.signals.new_entry.emit(label, text)
             self.signals.status_update.emit("● RECORDING")
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.signals.status_update.emit(f"ERR: {e}")
 
     # ── Qt slots (main thread) ────────────────────────────────────

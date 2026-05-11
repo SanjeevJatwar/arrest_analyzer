@@ -25,17 +25,20 @@ def transcribe(audio: np.ndarray, sample_rate: int) -> str:
     if _model is None:
         raise RuntimeError("Call load_model() before transcribe()")
 
-    # ---- GUARDS (prevents the 768/features crash) ----
-    if audio is None or len(audio) == 0:
-        print("[Whisper] skipped: empty audio")
-        return ""
-
-    if not np.isfinite(audio).all():
-        print("[Whisper] skipped: non-finite audio")
-        return ""
-
-    # Ensure 1D mono
     audio = np.asarray(audio, dtype=np.float32).flatten()
-    if len(audio) < int(0.2 * sample_rate):  # <200ms
-        print("[Whisper] skipped: too short")
+    if audio.size == 0:
+        print("[Whisper] SKIP empty audio")
         return ""
+
+    print(f"[Whisper] START sr={sample_rate} samples={audio.size}")
+
+    result = _model.transcribe(
+        audio,
+        language=config.WHISPER_LANGUAGE,
+        fp16=False,
+        condition_on_previous_text=False,
+    )
+
+    text = result["text"].strip()
+    print(f"[Whisper] DONE text={text[:120]}")
+    return text

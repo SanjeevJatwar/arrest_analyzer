@@ -13,14 +13,14 @@ REMOTE_DEVICE_INDEX = 17   # VB-Cable output device index (remote/Zoom audio)
 SAMPLE_RATE   = 16000   # Hz — required by Whisper & webrtcvad
 CHANNELS      = 1       # Mono
 FRAME_MS      = 30      # VAD frame duration: 10, 20, or 30 ms only
-VAD_MODE      = 3       # 0 (lenient) → 3 (aggressive); 3 filters most non-speech
+VAD_MODE      = 3      # 0 (lenient) → 3 (aggressive); 3 filters most non-speech
 
 # ── Utterance Boundary Detection ─────────────────────────────────
-SILENCE_TIMEOUT_S = 1.2   # Seconds of silence before flushing utterance to Whisper
+SILENCE_TIMEOUT_S = 2.2   # Seconds of silence before flushing utterance to Whisper
 MIN_SPEECH_S      = 0.4   # Ignore utterances shorter than this (avoids noise bursts)
 
 # ── Whisper ───────────────────────────────────────────────────────
-WHISPER_MODEL = "base"   # Options: tiny, base, small, medium, large
+WHISPER_MODEL = "small"   # Options: tiny, base, small, medium, large
                           # base = good balance of speed & accuracy on CPU
 WHISPER_LANGUAGE = None  # None = auto-detect; set "en" to force English
 

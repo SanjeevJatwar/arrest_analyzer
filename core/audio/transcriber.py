@@ -1,44 +1,36 @@
 """
 core/audio/transcriber.py
-
-Loads Whisper once at startup.
-transcribe(audio_np, sample_rate) → str
-
-Called from the speech accumulator callback (already on its own thread).
+Two separate Whisper model instances — one per channel.
+LOCAL and REMOTE transcribe in parallel without blocking each other.
 """
 import whisper
 import numpy as np
 import config
 
-_model = None
+_models = {}  # {"LOCAL": model, "REMOTE": model}
 
 
-def load_model():
-    global _model
-    print(f"[Whisper] Loading model: {config.WHISPER_MODEL} ...")
-    _model = whisper.load_model(config.WHISPER_MODEL)
-    print("[Whisper] Model ready.")
+def load_models():
+    """Load two separate Whisper model instances."""
+    for label in ("LOCAL", "REMOTE"):
+        print(f"[Whisper] Loading {label} model: {config.WHISPER_MODEL} ...")
+        _models[label] = whisper.load_model(config.WHISPER_MODEL)
+    print("[Whisper] Both models ready.")
 
 
-# core/audio/transcriber.py
-def transcribe(audio: np.ndarray, sample_rate: int) -> str:
-    if _model is None:
-        raise RuntimeError("Call load_model() before transcribe()")
+def transcribe(audio: np.ndarray, sample_rate: int, label: str = "LOCAL") -> str:
+    model = _models.get(label)
+    if model is None:
+        raise RuntimeError(f"Model for {label} not loaded. Call load_models() first.")
 
     audio = np.asarray(audio, dtype=np.float32).flatten()
     if audio.size == 0:
-        print("[Whisper] SKIP empty audio")
         return ""
 
-    print(f"[Whisper] START sr={sample_rate} samples={audio.size}")
-
-    result = _model.transcribe(
+    result = model.transcribe(
         audio,
         language=config.WHISPER_LANGUAGE,
         fp16=False,
         condition_on_previous_text=False,
     )
-
-    text = result["text"].strip()
-    print(f"[Whisper] DONE text={text[:120]}")
-    return text
+    return result["text"].strip()

@@ -13,8 +13,16 @@ openai-whisper>=20231117
 # PyQt6 UI
 PyQt6>=6.6.0
 
-# Numeric processing (usually already installed)
+# Numeric processing
 numpy>=1.24.0
+
+# ── SYSTEM DEPENDENCY (not pip) ──────────────────────────────────
+# Whisper requires ffmpeg to be installed at the OS level:
+#   Windows : winget install ffmpeg   (or choco install ffmpeg)
+#   macOS   : brew install ffmpeg
+#   Linux   : sudo apt install ffmpeg
+#
+# Verify it works: ffmpeg -version
 
 # ── Optional: GPU acceleration for Whisper ────────────────────────
 # If you have CUDA: pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118

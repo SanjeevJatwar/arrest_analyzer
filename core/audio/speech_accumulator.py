@@ -3,12 +3,8 @@ core/audio/speech_accumulator.py
 
 Accumulates raw audio frames using WebRTC VAD.
 Emits a complete utterance (as numpy array) only after detecting
-a silence gap >= SILENCE_TIMEOUT_S. This gives Whisper full sentences
+a silence gap >= SILENCE_TIMEOUT_S.  Gives Whisper full sentences
 rather than tiny chunks.
-
-FIXED:
-- Do NOT spawn a new thread on every flush (causes thread explosion / hang)
-- stop() joins watcher thread for clean shutdown
 """
 import time
 import threading
@@ -23,12 +19,8 @@ class SpeechAccumulator:
         acc = SpeechAccumulator(label="LOCAL", on_utterance=my_callback)
         acc.feed(pcm_bytes)   # call this from your sounddevice callback
 
-    on_utterance(label: str, audio: np.ndarray, sample_rate: int)
-    is called on the accumulator's watcher thread whenever an utterance ends.
-
-    IMPORTANT:
-    Your on_utterance callback should be FAST (enqueue audio to a worker),
-    not do heavy Whisper transcription directly.
+    on_utterance(label, audio_np, sample_rate) is called on a daemon thread
+    whenever an utterance ends (silence gap detected).
     """
 
     def __init__(self, label: str, on_utterance):
@@ -36,15 +28,15 @@ class SpeechAccumulator:
         self.on_utterance = on_utterance
         self.vad          = webrtcvad.Vad(config.VAD_MODE)
         self.sample_rate  = config.SAMPLE_RATE
-        self.frame_bytes  = int(self.sample_rate * config.FRAME_MS / 1000) * 2  # int16 -> 2 bytes/sample
+        # int16 = 2 bytes/sample
+        self.frame_bytes  = int(self.sample_rate * config.FRAME_MS / 1000) * 2
 
         self._lock        = threading.Lock()
-        self._speech_buf  = []     # raw int16 bytes while speaking
-        self._last_speech = None   # timestamp of last voiced frame
+        self._speech_buf  = []       # raw int16 bytes while speaking
+        self._last_speech = None     # monotonic timestamp of last voiced frame
         self._is_speaking = False
-        self._leftover    = b""    # incomplete frame carry-over
+        self._leftover    = b""      # incomplete frame carry-over
 
-        # Background thread watches for silence timeout
         self._running = True
         self._watcher = threading.Thread(target=self._silence_watcher, daemon=True)
         self._watcher.start()
@@ -55,12 +47,10 @@ class SpeechAccumulator:
         """Feed raw int16 PCM bytes (any length). Thread-safe."""
         data = self._leftover + pcm_bytes
         offset = 0
-
         with self._lock:
             while offset + self.frame_bytes <= len(data):
                 frame = data[offset: offset + self.frame_bytes]
                 offset += self.frame_bytes
-
                 try:
                     voiced = self.vad.is_speech(frame, self.sample_rate)
                 except Exception:
@@ -71,36 +61,32 @@ class SpeechAccumulator:
                     self._last_speech = time.monotonic()
                     self._is_speaking = True
                 elif self._is_speaking:
-                    # keep a small trailing buffer during brief pauses
+                    # keep a small trailing buffer so we don't cut off trailing syllables
                     self._speech_buf.append(frame)
 
             self._leftover = data[offset:]
 
     def stop(self):
-        """Stop watcher thread cleanly."""
         self._running = False
-        if self._watcher and self._watcher.is_alive():
-            self._watcher.join(timeout=1.0)
 
     # ── Internal ──────────────────────────────────────────────────
 
     def _silence_watcher(self):
         """Polls for silence timeout and flushes complete utterances."""
         while self._running:
-            time.sleep(0.1)
+            time.sleep(0.05)  # 50 ms poll — more responsive than 100 ms
             with self._lock:
                 if (
                     self._is_speaking
                     and self._last_speech is not None
                     and (time.monotonic() - self._last_speech) >= config.SILENCE_TIMEOUT_S
                 ):
-                    self._flush_locked()
+                    self._flush()
 
-    def _flush_locked(self):
-        """Flush buffered utterance. Must be called with self._lock held."""
+    def _flush(self):
+        """Flush current buffer as a complete utterance. Must hold self._lock."""
         if not self._speech_buf:
             return
-
         raw = b"".join(self._speech_buf)
         self._speech_buf.clear()
         self._is_speaking = False
@@ -109,15 +95,14 @@ class SpeechAccumulator:
         audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
         duration = len(audio) / self.sample_rate
 
-        print(f"[{self.label}] FLUSH duration={duration:.2f}s samples={len(audio)} sr={self.sample_rate}")
-
+        print(f"[{self.label}] FLUSH duration={duration:.2f}s samples={len(audio)}")
         if duration < config.MIN_SPEECH_S:
-            return  # too short — probably noise
+            print(f"[{self.label}] SKIP — too short ({duration:.2f}s < {config.MIN_SPEECH_S}s)")
+            return
 
-        # IMPORTANT:
-        # Do NOT spawn a new thread here.
-        # Your UI code should enqueue audio to a transcribe worker.
-        try:
-            self.on_utterance(self.label, audio, self.sample_rate)
-        except Exception as e:
-            print(f"[{self.label}] on_utterance error: {e}")
+        # Fire callback on separate daemon thread — don't block the watcher
+        threading.Thread(
+            target=self.on_utterance,
+            args=(self.label, audio, self.sample_rate),
+            daemon=True,
+        ).start()

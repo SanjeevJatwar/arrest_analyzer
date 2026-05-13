@@ -1,49 +1,47 @@
 """
 core/audio/transcriber.py
-Two separate Whisper model instances — one per channel.
-LOCAL and REMOTE transcribe in parallel without blocking each other.
+
+Loads Whisper once at startup.
+transcribe(audio_np, sample_rate) -> str
+
+Called from the speech accumulator callback (already on its own thread).
 """
 import whisper
 import numpy as np
 import config
 
-_models = {}  # {"LOCAL": model, "REMOTE": model}
+_model = None
 
 
-import threading
+def load_model():
+    global _model
+    print(f"[Whisper] Loading model: {config.WHISPER_MODEL} ...")
+    _model = whisper.load_model(config.WHISPER_MODEL)
+    print("[Whisper] Model ready.")
 
-_models_lock = threading.Lock()
-_loaded = False
 
-def load_models():
-    global _loaded
-    with _models_lock:
-        if _loaded:
-            return
-        for label in ("LOCAL", "REMOTE"):
-            print(f"[Whisper] Loading {label} model: {config.WHISPER_MODEL} ...")
-            _models[label] = whisper.load_model(config.WHISPER_MODEL)
-        _loaded = True
-    print("[Whisper] Both models ready.")
-
-def transcribe(audio: np.ndarray, sample_rate: int, label: str = "LOCAL") -> str:
-    model = _models.get(label)
-    if model is None:
-        raise RuntimeError(f"Model for {label} not loaded. Call load_models() first.")
+def transcribe(audio: np.ndarray, sample_rate: int) -> str:
+    if _model is None:
+        raise RuntimeError("Call load_model() before transcribe()")
 
     audio = np.asarray(audio, dtype=np.float32).flatten()
     if audio.size == 0:
+        print("[Whisper] SKIP — empty audio")
         return ""
 
-    result = model.transcribe(
+    # Whisper expects audio at 16000 Hz; warn if mismatch but don't crash
+    if sample_rate != 16000:
+        print(f"[Whisper] WARNING: sample_rate={sample_rate}, expected 16000")
+
+    print(f"[Whisper] START samples={audio.size} ({audio.size/sample_rate:.2f}s)")
+
+    result = _model.transcribe(
         audio,
         language=config.WHISPER_LANGUAGE,
         fp16=False,
         condition_on_previous_text=False,
     )
-    try:
-        result = model.transcribe(...)
-        return result["text"].strip()
-    except Exception as e:
-        print(f"[Whisper] {label} transcribe failed: {e}")
-        return ""
+
+    text = result["text"].strip()
+    print(f"[Whisper] DONE -> {text[:120]!r}")
+    return text

@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 MIC_DEVICE_INDEX    = None
 REMOTE_DEVICE_INDEX = None
@@ -21,7 +21,7 @@ WHISPER_DEVICE   = "cuda"
 WEBCAM_INDEX       = 0
 EMOTION_INTERVAL   = 5
 
-GROK_API_KEY           = os.getenv("GROK_API_KEY")
+GROQ_API_KEY           = os.getenv("GROQ_API_KEY")
 FRAUD_CHECK_INTERVAL_S = 15
 
 TRANSCRIPT_DIR = "output"

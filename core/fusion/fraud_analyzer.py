@@ -46,22 +46,22 @@ def build_analysis_input(transcript_entries, emotion_history):
 
 
 def llm_fraud_check(summary, emotion_score):
-    api_key = config.GROK_API_KEY
+    api_key = config.GROQ_API_KEY
     if not api_key:
         return {
             "score": min(100, int(emotion_score * 1.5)),
             "verdict": "NO API KEY",
-            "summary": "Set GROK_API_KEY in .env file.",
+            "summary": "Set GROQ_API_KEY in .env file.",
             "recommendation": "",
         }
 
     try:
-        from openai import OpenAI
+        from groq import Groq
 
-        client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
+        client = Groq(api_key=api_key)
 
         response = client.chat.completions.create(
-            model="grok-3-mini-fast",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": f"""Analyze this live call transcript for "Digital Arrest" fraud.
 Digital arrest = caller impersonates police/CBI/government, threatens arrest, demands money/OTP.
 User webcam emotion score (fear+sadness avg): {emotion_score:.1f}/100.

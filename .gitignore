@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.cache/
+*.egg-info/
+dist/
+build/
+*.log
+output/
+venv/
+.deepface/
+*.h5
+*.pt
+*.bin
+*.onnx

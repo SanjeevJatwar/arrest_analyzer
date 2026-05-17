@@ -1,42 +1,28 @@
-"""
-config.py — Adjust these before running.
-Run `python -c "from core.audio.capture import list_devices; list_devices()"` to list devices.
+import os
+from dotenv import load_dotenv
 
-NOTE: MIC_DEVICE_INDEX and REMOTE_DEVICE_INDEX are overridden at runtime
-by the UI dropdowns — you don't need to change them here unless running headless.
-Set to None to use the system default for that device.
-"""
+load_dotenv()
 
-# ── Audio Device IDs ──────────────────────────────────────────────
-# None = system default. Change only if running without UI.
-MIC_DEVICE_INDEX    = None   # Your microphone
-REMOTE_DEVICE_INDEX = None   # VB-Cable output / BlackHole
+MIC_DEVICE_INDEX    = None
+REMOTE_DEVICE_INDEX = None
 
-# ── Audio Settings ────────────────────────────────────────────────
-SAMPLE_RATE = 16000   # Hz — required by Whisper & webrtcvad
-CHANNELS    = 1       # Mono
-FRAME_MS    = 30      # VAD frame duration: 10, 20, or 30 ms only
-VAD_MODE    = 1       # 0 (lenient) -> 3 (aggressive)
+SAMPLE_RATE = 16000
+CHANNELS    = 1
+FRAME_MS    = 30
+VAD_MODE    = 1
 
-# ── Utterance Boundary Detection ─────────────────────────────────
-SILENCE_TIMEOUT_S = 1.6   # Seconds of silence before flushing utterance
-MIN_SPEECH_S      = 0.25  # Ignore utterances shorter than this (noise filter)
+SILENCE_TIMEOUT_S = 1.6
+MIN_SPEECH_S      = 0.25
 
-# ── Whisper ───────────────────────────────────────────────────────
-WHISPER_MODEL    = "large-v3"  # large-v3 via faster-whisper (int8, ~2.5 GB VRAM)
-WHISPER_LANGUAGE = "hi"      # Hindi transcription
-WHISPER_DEVICE   = "cuda"    # "cuda" | "cpu" — auto-falls back to cpu
+WHISPER_MODEL    = "large-v3"
+WHISPER_LANGUAGE = "hi"
+WHISPER_DEVICE   = "cuda"
 
-# ── Vision (Emotion Detection) ───────────────────────────────────
-WEBCAM_INDEX       = 0       # 0 = default webcam
-EMOTION_INTERVAL   = 5       # Analyze every Nth frame
+WEBCAM_INDEX       = 0
+EMOTION_INTERVAL   = 5
 
-# ── Fraud Detection ──────────────────────────────────────────────
-GEMINI_API_KEY         = None  # Set via env var GEMINI_API_KEY or here
-FRAUD_CHECK_INTERVAL_S = 15   # Seconds between fraud checks (real-time)
+GROK_API_KEY           = os.getenv("GROK_API_KEY")
+FRAUD_CHECK_INTERVAL_S = 15
 
-# ── Transcript Storage ───────────────────────────────────────────
 TRANSCRIPT_DIR = "output"
-
-# ── UI ────────────────────────────────────────────────────────────
 MAX_TRANSCRIPT_LINES = 200

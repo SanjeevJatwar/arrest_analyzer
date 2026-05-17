@@ -23,8 +23,8 @@ SILENCE_TIMEOUT_S = 1.6   # Seconds of silence before flushing utterance
 MIN_SPEECH_S      = 0.25  # Ignore utterances shorter than this (noise filter)
 
 # ── Whisper ───────────────────────────────────────────────────────
-WHISPER_MODEL    = "small"   # tiny | base | small | medium | large
-WHISPER_LANGUAGE = None      # None = auto-detect; "en" to force English
+WHISPER_MODEL    = "large-v3"  # large-v3 via faster-whisper (int8, ~2.5 GB VRAM)
+WHISPER_LANGUAGE = "hi"      # Hindi transcription
 WHISPER_DEVICE   = "cuda"    # "cuda" | "cpu" — auto-falls back to cpu
 
 # ── Vision (Emotion Detection) ───────────────────────────────────
@@ -33,7 +33,7 @@ EMOTION_INTERVAL   = 5       # Analyze every Nth frame
 
 # ── Fraud Detection ──────────────────────────────────────────────
 GEMINI_API_KEY         = None  # Set via env var GEMINI_API_KEY or here
-FRAUD_CHECK_INTERVAL_S = 30   # Seconds between LLM fraud checks
+FRAUD_CHECK_INTERVAL_S = 15   # Seconds between fraud checks (real-time)
 
 # ── Transcript Storage ───────────────────────────────────────────
 TRANSCRIPT_DIR = "output"

@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QFrame, QSplitter,
     QComboBox, QMessageBox, QProgressBar, QGroupBox,
+    QSystemTrayIcon,
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QObject
 from PyQt6.QtGui import QColor, QTextCharFormat, QTextCursor, QImage, QPixmap
@@ -243,11 +244,25 @@ class MainWindow(QMainWindow):
         self.fraud_verdict.setWordWrap(True)
         flay.addWidget(self.fraud_verdict)
         self.fraud_details = QTextEdit(); self.fraud_details.setReadOnly(True)
-        self.fraud_details.setMaximumHeight(120)
+        self.fraud_details.setMaximumHeight(100)
         self.fraud_details.setStyleSheet("color:#666; font-size:10px; background:#060809;")
         self.fraud_details.setPlaceholderText("[ analysis details will appear here ]")
         flay.addWidget(self.fraud_details)
         rlay.addWidget(fraud_group)
+
+        # Suggestions panel
+        sug_group = QGroupBox(">> SUGGESTIONS / सुझाव")
+        sug_group.setStyleSheet(
+            "QGroupBox { color: #ffaa00; border: 1px solid #332200; }"
+            "QGroupBox::title { color: #ffaa00; }")
+        slay = QVBoxLayout(sug_group)
+        self.suggestion_text = QTextEdit(); self.suggestion_text.setReadOnly(True)
+        self.suggestion_text.setStyleSheet(
+            "color:#ffcc00; font-family:'Courier New'; font-size:11px;"
+            "background:#0d0a00; border:none; padding:8px;")
+        self.suggestion_text.setPlaceholderText("[ real-time suggestions will appear here / सुझाव यहाँ दिखाई देंगे ]")
+        slay.addWidget(self.suggestion_text)
+        rlay.addWidget(sug_group)
         rlay.addStretch()
 
         splitter.addWidget(right_w)
@@ -493,15 +508,67 @@ class MainWindow(QMainWindow):
         matches = details.get("matches", [])
         analysis = details.get("analysis", "")
         info = f"Method: {method}\n"
-        if matches: info += f"Keywords: {', '.join(matches[:10])}\n"
+        if matches:
+            try:
+                info += f"Keywords: {', '.join(str(m) for m in matches[:10])}\n"
+            except Exception:
+                pass
         if analysis: info += f"Analysis: {analysis}\n"
         self.fraud_details.setText(info)
+
+        # Update suggestions panel
+        suggestions = details.get("suggestions", [])
+        if suggestions:
+            sug_lines = []
+            for s in suggestions:
+                hi = s.get("message_hi", "")
+                en = s.get("message_en", "")
+                if hi: sug_lines.append(hi)
+                if en: sug_lines.append(en)
+                sug_lines.append("")
+            self.suggestion_text.setText("\n".join(sug_lines))
+        else:
+            self.suggestion_text.setText("")
+
+        # Desktop notification for high risk
+        if score >= 40:
+            self._show_fraud_notification(score, verdict, suggestions)
 
     def _tick_timer(self):
         if self._session_start:
             elapsed = int(time.monotonic() - self._session_start)
             h, m, s = elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
             self.timer_label.setText(f"{h:02d}:{m:02d}:{s:02d}")
+
+    def _show_fraud_notification(self, score, verdict, suggestions):
+        """Show a desktop popup notification when fraud is detected."""
+        try:
+            title = "!! FRAUD ALERT / धोखाधड़ी चेतावनी !!"
+            msg = f"Risk: {score}% - {verdict}\n"
+            if suggestions:
+                s = suggestions[0]
+                hi = s.get("message_hi", "")
+                en = s.get("message_en", "")
+                if hi: msg += f"{hi}\n"
+                if en: msg += f"{en}"
+
+            # Try system tray notification
+            if not hasattr(self, '_tray') or self._tray is None:
+                self._tray = QSystemTrayIcon(self)
+                self._tray.show()
+
+            if self._tray.isSystemTrayAvailable():
+                if score >= 70:
+                    icon = QSystemTrayIcon.MessageIcon.Critical
+                else:
+                    icon = QSystemTrayIcon.MessageIcon.Warning
+                self._tray.showMessage(title, msg, icon, 8000)
+            else:
+                # Fallback: use QMessageBox for high risk
+                if score >= 70:
+                    QMessageBox.critical(self, title, msg)
+        except Exception as e:
+            print(f"[Notification] Error: {e}")
 
     def closeEvent(self, event):
         self._stop_capture(); event.accept()

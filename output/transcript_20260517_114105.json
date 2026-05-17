@@ -1,0 +1,30 @@
+{
+  "session_id": "20260517_114105",
+  "entries": [
+    {
+      "timestamp": "2026-05-17T11:42:09.972830",
+      "label": "LOCAL",
+      "text": "Helo? Helo?"
+    },
+    {
+      "timestamp": "2026-05-17T11:42:11.521451",
+      "label": "REMOTE",
+      "text": "But if you recall my last video on opus 4.6, this is not necessarily as impressive as people think it is. Just being able to theoretically, technically contain that many tokens in its prompts does not..."
+    },
+    {
+      "timestamp": "2026-05-17T11:42:14.270517",
+      "label": "LOCAL",
+      "text": "It's hot, doesn't it?"
+    },
+    {
+      "timestamp": "2026-05-17T11:42:27.549323",
+      "label": "LOCAL",
+      "text": "Am I audible? Oh wow! It seems great!"
+    },
+    {
+      "timestamp": "2026-05-17T11:43:18.890431",
+      "label": "REMOTE",
+      "text": "not necessarily mean that it's good at retrieving all of the information in there. I've put like entire books in these models and asked it to do a chapter by chapter summary and it can do it. It'll give me like maybe 12."
+    }
+  ]
+}

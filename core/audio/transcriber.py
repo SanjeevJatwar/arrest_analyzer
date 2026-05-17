@@ -1,11 +1,9 @@
 """
 core/audio/transcriber.py
 
-Loads Whisper once at startup on CUDA (if available).
-transcribe(audio_np, sample_rate) -> str
+Uses faster-whisper (CTranslate2) for accurate Hindi speech-to-text.
+Loads the large-v3 model in int8 quantization to fit in 6 GB VRAM.
 """
-import whisper
-import torch
 import numpy as np
 import config
 
@@ -15,14 +13,24 @@ _device = None
 
 def load_model():
     global _model, _device
+    import torch
+    from faster_whisper import WhisperModel
 
     if config.WHISPER_DEVICE == "cuda" and torch.cuda.is_available():
         _device = "cuda"
+        compute_type = "int8_float16"  # best speed/accuracy on GPU
     else:
         _device = "cpu"
+        compute_type = "int8"
 
-    print(f"[Whisper] Loading model: {config.WHISPER_MODEL} on {_device} ...")
-    _model = whisper.load_model(config.WHISPER_MODEL, device=_device)
+    model_size = config.WHISPER_MODEL
+
+    print(f"[Whisper] Loading faster-whisper model: {model_size} on {_device} ({compute_type}) ...")
+    _model = WhisperModel(
+        model_size,
+        device=_device,
+        compute_type=compute_type,
+    )
     print(f"[Whisper] Model ready on {_device}.")
 
 
@@ -32,27 +40,33 @@ def transcribe(audio: np.ndarray, sample_rate: int) -> str:
 
     audio = np.asarray(audio, dtype=np.float32).flatten()
     if audio.size == 0:
-        print("[Whisper] SKIP — empty audio")
         return ""
 
-    # Whisper expects audio at 16000 Hz; warn if mismatch but don't crash
     if sample_rate != 16000:
         print(f"[Whisper] WARNING: sample_rate={sample_rate}, expected 16000")
 
-    print(f"[Whisper] START samples={audio.size} ({audio.size/sample_rate:.2f}s)")
+    duration = audio.size / sample_rate
+    print(f"[Whisper] START {duration:.2f}s ({audio.size} samples)")
 
-    use_fp16 = (_device == "cuda")
-
-    result = _model.transcribe(
+    segments, info = _model.transcribe(
         audio,
         language=config.WHISPER_LANGUAGE,
-        fp16=use_fp16,
+        beam_size=5,
+        vad_filter=True,           # built-in VAD for cleaner results
+        vad_parameters=dict(
+            min_silence_duration_ms=500,
+        ),
         condition_on_previous_text=False,
     )
 
-    text = result["text"].strip()
+    # Collect all segment texts
+    texts = []
+    for seg in segments:
+        texts.append(seg.text.strip())
+
+    text = " ".join(texts).strip()
     try:
-        print(f"[Whisper] DONE: {text[:120]}")
-    except UnicodeEncodeError:
-        print(f"[Whisper] DONE: {text[:120].encode('ascii', 'replace').decode()}")
+        print(f"[Whisper] DONE ({info.language} {info.language_probability:.0%}): {text[:120]}")
+    except (UnicodeEncodeError, Exception):
+        print(f"[Whisper] DONE: transcription complete ({len(text)} chars)")
     return text

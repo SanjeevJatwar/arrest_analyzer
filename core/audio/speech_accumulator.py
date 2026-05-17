@@ -95,14 +95,10 @@ class SpeechAccumulator:
         audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
         duration = len(audio) / self.sample_rate
 
-        print(f"[{self.label}] FLUSH duration={duration:.2f}s samples={len(audio)}")
         if duration < config.MIN_SPEECH_S:
-            print(f"[{self.label}] SKIP — too short ({duration:.2f}s < {config.MIN_SPEECH_S}s)")
             return
 
-        # Fire callback on separate daemon thread — don't block the watcher
-        threading.Thread(
-            target=self.on_utterance,
-            args=(self.label, audio, self.sample_rate),
-            daemon=True,
-        ).start()
+        print(f"[{self.label}] UTTERANCE {duration:.1f}s ({len(audio)} samples)")
+
+        # Call directly — the TranscriptionWorker's queue handles async processing
+        self.on_utterance(self.label, audio, self.sample_rate)

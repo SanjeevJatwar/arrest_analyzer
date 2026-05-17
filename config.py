@@ -9,8 +9,8 @@ Set to None to use the system default for that device.
 
 # ── Audio Device IDs ──────────────────────────────────────────────
 # None = system default. Change only if running without UI.
-MIC_DEVICE_INDEX    = 18  # Your microphone
-REMOTE_DEVICE_INDEX = 27 # VB-Cable output / BlackHole
+MIC_DEVICE_INDEX    = None   # Your microphone
+REMOTE_DEVICE_INDEX = None   # VB-Cable output / BlackHole
 
 # ── Audio Settings ────────────────────────────────────────────────
 SAMPLE_RATE = 16000   # Hz — required by Whisper & webrtcvad
@@ -25,6 +25,18 @@ MIN_SPEECH_S      = 0.25  # Ignore utterances shorter than this (noise filter)
 # ── Whisper ───────────────────────────────────────────────────────
 WHISPER_MODEL    = "small"   # tiny | base | small | medium | large
 WHISPER_LANGUAGE = None      # None = auto-detect; "en" to force English
+WHISPER_DEVICE   = "cuda"    # "cuda" | "cpu" — auto-falls back to cpu
+
+# ── Vision (Emotion Detection) ───────────────────────────────────
+WEBCAM_INDEX       = 0       # 0 = default webcam
+EMOTION_INTERVAL   = 5       # Analyze every Nth frame
+
+# ── Fraud Detection ──────────────────────────────────────────────
+GEMINI_API_KEY         = None  # Set via env var GEMINI_API_KEY or here
+FRAUD_CHECK_INTERVAL_S = 30   # Seconds between LLM fraud checks
+
+# ── Transcript Storage ───────────────────────────────────────────
+TRANSCRIPT_DIR = "output"
 
 # ── UI ────────────────────────────────────────────────────────────
 MAX_TRANSCRIPT_LINES = 200

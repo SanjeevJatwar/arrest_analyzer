@@ -138,9 +138,9 @@ def test_all_input_devices():
 
         active = avg_rms > RMS_THRESHOLD
 
-        bar = "█" * min(40, int(avg_rms * 800))
+        bar = "#" * min(40, int(avg_rms * 800))
 
-        status = "◄ AUDIO DETECTED" if active else "(silent)"
+        status = "<< AUDIO DETECTED" if active else "(silent)"
 
         print(
             f"sr={used_sr:<6} "
